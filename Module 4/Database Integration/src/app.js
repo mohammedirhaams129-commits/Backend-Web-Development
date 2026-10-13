@@ -11,7 +11,13 @@ app.patch('/posts/:id', postController.update);
 app.delete('/posts/:id', postController.remove);
 
 app.use((error, req, res, next) => {
-  res.status(error.statusCode || 500).json({ error: error.message });
+  // Repository errors are intentionally safe, application-level messages.
+  // Unknown errors (including unhandled database errors) never expose internals.
+  const statusCode = Number.isInteger(error.statusCode) && error.statusCode >= 400 && error.statusCode < 500
+    ? error.statusCode
+    : 500;
+  const message = statusCode === 500 ? 'Internal server error' : error.message;
+  res.status(statusCode).json({ error: message });
 });
 
 if (require.main === module) {
