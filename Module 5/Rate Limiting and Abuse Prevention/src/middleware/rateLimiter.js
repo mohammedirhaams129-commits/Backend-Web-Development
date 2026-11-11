@@ -1,26 +1,30 @@
 'use strict';
-// middleware/rateLimiter.js
-//
-// YOUR TASK: replace this pass-through with a real rate limiter.
-//
-// Right now this middleware lets EVERY request through, so the login route can be
-// brute-forced without limit. Build a strict limiter with `express-rate-limit`
-// (already in package.json) that is exported as the middleware used by the three
-// auth routes in src/routes/auth.js.
-//
-// Requirements (checked by the tests):
-//   - windowMs: 15 minutes
-//   - max: 5 attempts per window per IP
-//   - after the limit, respond with 429 and a `Retry-After` header
-//   - standardHeaders: true, legacyHeaders: false
-//   - (recommended) skipSuccessfulRequests: true so only FAILED attempts count
-//
-// Also add a COMMENT explaining how a Redis-backed store (rate-limit-redis) would
-// replace the default in-memory store in a multi-instance deployment, and why the
-// in-memory store is not enough when several instances run behind a load balancer.
-//
-// Hint: express-rate-limit returns a middleware function — export it directly:
-//   const rateLimit = require('express-rate-limit');
-//   module.exports = rateLimit({ ...options });
 
-module.exports = (req, res, next) => next(); // TODO: replace this stub
+const { rateLimit } = require('express-rate-limit');
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  handler: (req, res, _next, options) => {
+    // express-rate-limit tracks the reset time; expose it as Retry-After in seconds.
+    const resetTime = req.rateLimit && req.rateLimit.resetTime;
+    const retryAfter = resetTime
+      ? Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000))
+      : Math.ceil(options.windowMs / 1000);
+
+    res.set('Retry-After', String(retryAfter));
+    res.status(options.statusCode).send('Too many requests, please try again later.');
+  },
+});
+
+// In a multi-instance deployment, replace the default in-memory store with a
+// shared Redis store (for example, rate-limit-redis configured with RedisStore
+// and a Redis client sendCommand function). Each app instance then reads and
+// updates the same counters. The in-memory store is process-local, so instances
+// behind a load balancer keep separate counters and an attacker can spread
+// attempts across them, bypassing the intended per-IP limit.
+
+module.exports = authLimiter;
