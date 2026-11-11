@@ -99,7 +99,7 @@ async function main() {
   await test('generateOTP returns a 6-digit numeric string', async () => {
     const otp = generateOTP();
     assert(typeof otp === 'string', `Expected string, got ${typeof otp}`);
-    assert(/^\\d{6}$/.test(otp), `Expected 6 digits, got '${otp}'`);
+    assert(/^\d{6}$/.test(otp), `Expected 6 digits, got '${otp}'`);
   });
 
   console.log('\nTest 3: POST /auth/verify-otp with correct OTP returns 200');
